@@ -1,9 +1,5 @@
 # See https://github.com/neovim/bot-ci#generated-builds for more information.
 
-BUILD_DIR=${BUILD_DIR-.}
-OS_NAME=${OS_NAME-linux}
-
-SAY_PREFIX="$(basename $0): "
 lightred() { echo -e "\033[1;31m$*\033[0m"; }
 blue() { echo -e "\033[1;34m$*\033[0m"; }
 dump() { echo "$SAY_PREFIX$*" >&2; }
@@ -26,16 +22,19 @@ yell_vars() { for var in "$@"; do yell_var $var; done; }
 
 export SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+BUILD_DIR=${BUILD_DIR-.}
+OS_NAME=${OS_NAME-linux}
+
 nightly_x64() {
-  mkdir "${BUILD_DIR}/_neovim"
-  wget -q -O - https://github.com/neovim/neovim/releases/download/nightly/nvim-${OS_NAME}64.tar.gz \
-    | tar xzf - --strip-components=1 -C "${BUILD_DIR}/_neovim"
+  test -d "${BUILD_DIR}/_neovim" || {
+    mkdir "${BUILD_DIR}/_neovim"
+    curl -sL https://github.com/neovim/neovim/releases/download/nightly/nvim-${OS_NAME}64.tar.gz \
+      | tar xzf - --strip-components=1 -C "${BUILD_DIR}/_neovim"
+  }
 
   export PATH="${BUILD_DIR}/_neovim/bin:${PATH}"
-  say "\$PATH: \"${PATH}\""
-
   export VIM="${BUILD_DIR}/_neovim/share/nvim/runtime"
-  say "\$VIM: \"${VIM}\""
+  say_vars PATH VIM
 
   nvim --version
 }
@@ -48,20 +47,15 @@ _setup_deps() {
   sudo git clone --depth 1 --branch ${NVIM_DEPS_BRANCH} git://github.com/${NVIM_DEPS_REPO} "$(dirname "${1}")"
 
   export NVIM_DEPS_PREFIX="${1}/usr"
-  say "\$NVIM_DEPS_PREFIX: \"${NVIM_DEPS_PREFIX}\""
+  say_var NVIM_DEPS_PREFIX
 
   eval "$(${NVIM_DEPS_PREFIX}/bin/luarocks path)"
-  say "\$LUA_PATH: \"${LUA_PATH}\""
-  say "\$LUA_CPATH: \"${LUA_CPATH}\""
+  say_vars LUA_PATH LUA_CPATH
 
   export PKG_CONFIG_PATH="${NVIM_DEPS_PREFIX}/lib/pkgconfig"
-  say "\$PKG_CONFIG_PATH: \"${PKG_CONFIG_PATH}\""
-
   export USE_BUNDLED_DEPS=OFF
-  say "\$USE_BUNDLED_DEPS: \"${USE_BUNDLED_DEPS}\""
-
   export PATH="${NVIM_DEPS_PREFIX}/bin:${PATH}"
-  say "\$PATH: \"${PATH}\""
+  say_vars PKG_CONFIG_PATH USE_BUNDLED_DEPS PATH
 }
 
 deps_x64() {
@@ -78,8 +72,10 @@ EOF
   exit 1
 }
 
-test "$1" = --help && usage
-test -n "$1" || usage
+COMMAND="${COMMAND-$1}"
+
+test "$COMMAND" = --help && usage
+test -n "$COMMAND" || usage
 
 # Execute the command with - substituted for _
-$(echo "$1" | tr - _)
+$(echo "$COMMAND" | tr - _)
